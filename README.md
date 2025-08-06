@@ -35,7 +35,7 @@ You need to create 4-5 recurring jobs making requests to MaintenanceTask control
 
 <img width="721" height="267" alt="image" src="https://github.com/user-attachments/assets/21d4ebe2-f532-401d-aa2b-48b07dc2e14b" />
 
-For some time jobs runs fine and then it start giving errors, I got below error and job never reschduled again and went to error state forever. I even tried to :
+For some time jobs runs fine and then it start giving errors, I got below error and job never reschduled again and went to error state forever. I even tried to cancel and run it again but it did not work either and I got same error:
 
 1) MassTransit.UnhandledEventException
 •
@@ -48,6 +48,3 @@ The JobSlotAllocated event is not handled during the WaitingForSlot state for th
    at MassTransit.MassTransitStateMachine`1.MassTransit.StateMachine<TInstance>.RaiseEvent[T](BehaviorContext`2 context) in /_/src/MassTransit/SagaStateMachine/MassTransitStateMachine.cs:line 135
    at MassTransit.Middleware.StateMachineSagaMessageFilter`2.Send(SagaConsumeContext`2 context, IPipe`1 next) in /_/src/MassTransit/Middleware/StateMachineSagaMessageFilter.cs:line 66
 
-2) MassTransit.UnhandledEventException
-
-The JobSlotUnavailable event is not handled during the WaitingForSlot state for the JobStateMachine state machine. I am using SampleJobConsumer application and dynamically creating job.
