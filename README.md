@@ -29,10 +29,13 @@ The SQL transport is using PostgreSQL in this scenario. To use SQL Server, switc
 Supports local debugging from VS/Rider. Ctrl + F5 and navigate to:  
 `http://localhost:5002/swagger`  
 `https://localhost:5003/swagger`
+
+
 You need to create 4-5 recurring jobs making requests to MaintenanceTask controller as in below screenshot with schdule of 2, 5,10, 30, 50 minutes which I did. 
+
 <img width="721" height="267" alt="image" src="https://github.com/user-attachments/assets/21d4ebe2-f532-401d-aa2b-48b07dc2e14b" />
 
-For some time jobs runs fine and then it start giving errors, I got 2 different errors:
+For some time jobs runs fine and then it start giving errors, I got below error and job never reschduled again and went to error state forever. I even tried to :
 
 1) MassTransit.UnhandledEventException
 •
