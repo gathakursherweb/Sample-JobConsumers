@@ -2,7 +2,9 @@
 
 using JobService.Components;
 using MassTransit;
+using MassTransit.Contracts.JobService;
 using Microsoft.AspNetCore.Mvc;
+using System.Threading.Tasks;
 
 
 [ApiController]
@@ -32,22 +34,25 @@ public class MaintenanceTaskController :
 
 		var jobName = $"MaintenanceTask_{task.Id}";
 
-		await publishEndpoint.AddOrUpdateRecurringJob(
-			jobName,
-			new MaintenanceTask
-			{
-				Id = task.Id,
-				Name = task.Name,
-				Description = task.Description,
-				IsActive = task.IsActive
-			},
-			x => x.Every(minutes: scheduleMinutes));
+		var jobId = await publishEndpoint.AddOrUpdateRecurringJob(
+		   jobName,
+		   new MaintenanceTask
+		   {
+			   Id = task.Id,
+			   Name = task.Name,
+			   Description = task.Description,
+			   IsActive = task.IsActive
+		   },
+		   x => x.Every(minutes: scheduleMinutes));
+
 
 		_logger.LogInformation("Created/Updated recurring job {JobName} with cron {CronExpression}", jobName, scheduleMinutes);
 
 		return Ok(new
 		{
 			task.Id,
+			jobId,
+			jobName,
 			task.Name
 		});
 	}
@@ -67,10 +72,57 @@ public class MaintenanceTaskController :
 		}
 		catch (Exception e)
 		{
+			_logger.LogInformation("Removed recurring job exception {JobName}", jobName);
+
 			Console.WriteLine(e);
 			throw;
 		}
 
+		return Ok();
+	}
+
+	[HttpGet("{jobId:guid}")]
+	public async Task<IActionResult> GetJobState(Guid jobId, [FromServices] IRequestClient<GetJobState> client)
+	{
+		try
+		{
+			_logger.LogInformation("GetJobState job: {jobId}", jobId);
+
+			var jobState = await client.GetJobState(jobId);
+
+			return Ok(new
+			{
+				jobId,
+				jobState.CurrentState,
+				jobState.Submitted,
+				jobState.Started,
+				jobState.Completed,
+				jobState.Faulted,
+				jobState.Reason,
+				jobState.LastRetryAttempt
+			});
+		}
+		catch (Exception ex)
+		{
+			_logger.LogInformation("GetJobState exception: {jobId}, {ex}", jobId, ex);
+
+			return NotFound();
+		}
+	}
+
+	[HttpPost("{jobId:guid}")]
+	public async Task<IActionResult> RetryJob(Guid jobId, [FromServices] IPublishEndpoint publishEndpoint)
+	{
+		try
+		{
+			_logger.LogInformation("RetryJob job: {jobId}", jobId);
+			await publishEndpoint.RetryJob(jobId);
+		}
+		catch (Exception ex)
+		{
+			_logger.LogInformation("RetryJob exception: {jobId}, {ex}", jobId, ex);
+
+		}
 		return Ok();
 	}
 }

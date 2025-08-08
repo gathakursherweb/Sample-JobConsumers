@@ -28,7 +28,7 @@ public class MaintenanceJobConsumer :
 		{
 			// await context.SetJobProgress(0, (long)variance.TotalMilliseconds);
 
-			await Task.Delay(10000, context.CancellationToken);
+			await Task.Delay(30000, context.CancellationToken);
 
 			//   await context.SetJobProgress((long)variance.TotalMilliseconds, (long)variance.TotalMilliseconds);
 
@@ -36,11 +36,20 @@ public class MaintenanceJobConsumer :
 
 			_logger.LogInformation("MaintenanceTask completed: {Id} {Name}", context.Job.Id, context.Job.Name);
 		}
+
 		catch (OperationCanceledException) when (context.CancellationToken.IsCancellationRequested)
 		{
-			_logger.LogInformation("MaintenanceTask exception: {Id} {Name}", context.Job.Id, context.Job.Name);
+			_logger.LogInformation("MaintenanceTask  OperationCanceledException: {Id} {Name}", context.Job.Id, context.Job.Name);
 
-			await context.SaveJobState(new ConsumerState { Variance = 10000 });
+		//	await context.SaveJobState(new ConsumerState { Variance = 10000 });
+
+			throw;
+		}
+		catch (ExceptionInfoException ex)
+		{
+			_logger.LogInformation("MaintenanceTask exception: {Id} {Name} {ex}", context.Job.Id, context.Job.Name, ex);
+
+			//	await context.SaveJobState(new ConsumerState { Variance = 10000 });
 
 			throw;
 		}

@@ -14,13 +14,22 @@ using Serilog.Events;
 
 Log.Logger = new LoggerConfiguration()
 	.MinimumLevel.Information()
-	.MinimumLevel.Override("MassTransit", LogEventLevel.Information)
+	.MinimumLevel.Override("MassTransit", LogEventLevel.Debug)
+	.MinimumLevel.Override("MassTransit.Saga", LogEventLevel.Debug)  // Add saga-specific logging
+	.MinimumLevel.Override("MassTransit.StateMachine", LogEventLevel.Debug)  // Add state machine logging
+	    .MinimumLevel.Override("MassTransit.Scheduling", LogEventLevel.Debug)       // For scheduling/recurring jobs
+    .MinimumLevel.Override("MassTransit.Messages", LogEventLevel.Debug)        // For job messages
+    .MinimumLevel.Override("MassTransit.Consumers", LogEventLevel.Debug)       // For job consumers
+    .MinimumLevel.Override("MassTransit.Context", LogEventLevel.Debug)         // For saga contexts
+
 	.MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
 	.MinimumLevel.Override("Microsoft.Hosting", LogEventLevel.Information)
-	.MinimumLevel.Override("Microsoft.EntityFrameworkCore", LogEventLevel.Fatal)
-	.MinimumLevel.Override("Microsoft.EntityFrameworkCore.Database.Command", LogEventLevel.Fatal)
+	.MinimumLevel.Override("Microsoft.EntityFrameworkCore", LogEventLevel.Warning)
+	.MinimumLevel.Override("Microsoft.EntityFrameworkCore.Database.Command", LogEventLevel.Information)
+	    .MinimumLevel.Override("Microsoft.EntityFrameworkCore.Update", LogEventLevel.Information)  // Enable to see EF updates
+
 	.Enrich.FromLogContext()
-	.WriteTo.Console()
+    .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {SourceContext}: {Message:lj}{NewLine}{Exception}")  // Better format
 	.CreateLogger();
 
 var builder = WebApplication.CreateBuilder(args);
@@ -64,12 +73,13 @@ builder.Services.AddDbContext<JobServiceSagaDbContext>(optionsBuilder =>
 	{
 		m.MigrationsAssembly(Assembly.GetExecutingAssembly().GetName().Name);
 		m.MigrationsHistoryTable($"__{nameof(JobServiceSagaDbContext)}");
-
+		
 		m.EnableRetryOnFailure();
 	});
 });
 
 builder.Services.AddHostedService<MigrationHostedService<JobServiceSagaDbContext>>();
+
 
 builder.Services.AddMassTransit(x =>
 {
@@ -85,17 +95,26 @@ builder.Services.AddMassTransit(x =>
 
 	//  x.AddConsumer<TrackVideoConvertedConsumer>();
 
-	x.TryAddJobDistributionStrategy<DataCenterJobDistributionStrategy>();
+  //	x.TryAddJobDistributionStrategy<DataCenterJobDistributionStrategy>();
 
 	// x.AddConsumer<MaintenanceConsumer>();
 
-	x.SetJobConsumerOptions();
-	x.AddJobSagaStateMachines(options => options.FinalizeCompleted = false)
+    x.SetJobConsumerOptions(options => 
+    {
+        options.HeartbeatInterval = TimeSpan.FromMinutes(1);
+
+    });
+		x.AddJobSagaStateMachines(options =>
+		{
+			options.FinalizeCompleted = false;
+			//options.SlotWaitTime = TimeSpan.FromSeconds(30);
+		})
 		.SetPartitionedReceiveMode()
 		.EntityFrameworkRepository(r =>
 		{
 			r.ExistingDbContext<JobServiceSagaDbContext>();
 			r.UsePostgres();
+			r.ConcurrencyMode = ConcurrencyMode.Optimistic;
 		});
 
 	x.SetKebabCaseEndpointNameFormatter();
@@ -104,6 +123,22 @@ builder.Services.AddMassTransit(x =>
 	{
 		cfg.UseSqlMessageScheduler();
 		cfg.UseJobSagaPartitionKeyFormatters();
+	cfg.UseMessageRetry(r =>
+	{
+		r.Handle<UnhandledEventException>(ex =>
+		{
+			Log.Warning("Handling UnhandledEventException: {ExceptionMessage}", ex.Message);
+			return ex.Message.Contains("JobSlotAllocated");
+		});
+		r.Handle<InvalidOperationException>(ex =>
+		{
+			Log.Warning("Handling InvalidOperationException: {ExceptionMessage}", ex.Message);
+			return ex.Message.Contains("cannot be tracked");
+		});
+		r.Exponential(3, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(2));
+	
+		// Logging on retry is not directly supported here; consider using middleware or logging inside your consumer.
+	});
 
 		cfg.ConfigureEndpoints(context);
 	});

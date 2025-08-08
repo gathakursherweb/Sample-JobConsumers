@@ -34,6 +34,16 @@
       - ASPNETCORE_Kestrel__Certificates__Default__Password=Passw0rd
       - ASPNETCORE_Kestrel__Certificates__Default__Path=/https/aspnetapp.pfx
       - ASPNETCORE_HTTPS_PORT=5003
-      - DATA_CENTER=EAST
+      # - DATA_CENTER=EAST
     volumes:
       - ~/.aspnet/https:/https:ro
+  pgadmin:
+    container_name: "pgadmin"
+    image: dpage/pgadmin4
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: admin     
+    ports:
+      - "8080:80"
+    depends_on:
+      - postgres
